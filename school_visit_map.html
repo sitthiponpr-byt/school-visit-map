@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>แผนที่เยี่ยมบ้านนักเรียน - School Visit Map</title>
+  <style>
+    /* Apple-like system font stack + minimal UI */
+    :root{
+      --bg-grad: linear-gradient(180deg,#f7f8fa 0%, #ffffff 50%);
+      --card-bg: rgba(255,255,255,0.7);
+      --muted: #6b7280;
+      --accent: #0a84ff; /* iOS blue-ish */
+      --glass-border: rgba(15,23,42,0.06);
+      --radius: 12px;
+    }
+    html,body{height:100%;}
+    body {
+      margin:0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg-grad);
+      color: #111827;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      padding:24px;
+      box-sizing:border-box;
+    }
+
+    header.appbar{
+      display:flex;
+      align-items:center;
+      gap:16px;
+      margin-bottom:18px;
+    }
+    header .logo {
+      width:56px;height:56px;border-radius:12px;
+      background:linear-gradient(135deg,var(--accent), #3ddc97);
+      box-shadow: 0 6px 18px rgba(10,132,255,0.12), inset 0 -6px 18px rgba(255,255,255,0.12);
+      display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:18px;
+    }
+    header h1{
+      font-size:18px;margin:0;
+      letter-spacing:-0.2px;
+    }
+    header p { margin:0;color:var(--muted);font-size:13px; }
+
+    .wrapper { display:flex; flex-direction:column; gap:16px; }
+    @media(min-width:980px){
+      .wrapper { flex-direction:row; align-items:flex-start; }
+    }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      box-shadow: 0 8px 24px rgba(15,23,42,0.06);
+      border: 1px solid var(--glass-border);
+      padding:12px;
+      backdrop-filter: blur(6px) saturate(120%);
+    }
+
+    /* Map area */
+    #map {
+      height:60vh;
+      border-radius: 12px;
+      overflow:hidden;
+      width:100%;
+      min-height:420px;
+    }
+    @media(min-width:980px){
+      #map{ height:78vh; width:72vw; max-width:1100px; }
+    }
+
+    /* Sidebar */
+    .side {
+      padding:12px;
+      width:100%;
+      box-sizing:border-box;
+    }
+    @media(min-width:980px){ .side{ width:360px; flex:0 0 360px; } }
+
+    .panel-title { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+    .muted { color:var(--muted); font-size:13px; }
+
+    .group { margin-bottom:12px; padding:10px; border-radius:10px; background:linear-gradient(180deg, rgba(255,255,255,0.6), rgba(250,250,250,0.55)); border:1px solid rgba(0,0,0,0.03); }
+    .group b { font-size:14px; }
+    .small { font-size:13px; color:var(--muted); }
+
+    table { width:100%; border-collapse: collapse; font-size:13px; }
+    th,td { padding:8px 10px; text-align:left; }
+    thead th { color:var(--muted); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:0.6px; }
+    tbody tr { background:transparent; }
+    tbody tr + tr td { border-top:1px solid rgba(15,23,42,0.04); }
+
+    /* Buttons */
+    .btn {
+      display:inline-flex; align-items:center; gap:8px;
+      padding:8px 12px; border-radius:999px; text-decoration:none; color:white; background:var(--accent);
+      box-shadow: 0 6px 18px rgba(10,132,255,0.15);
+      font-weight:600; font-size:13px;
+    }
+    .btn.secondary {
+      background:transparent; color:var(--accent); border:1px solid rgba(10,132,255,0.12);
+      box-shadow:none; font-weight:600;
+    }
+
+    /* Popup styling (Leaflet) */
+    .leaflet-popup-content-wrapper {
+      border-radius: 12px;
+      box-shadow: 0 8px 20px rgba(2,6,23,0.12);
+      border: 1px solid rgba(0,0,0,0.06);
+      font-family: inherit;
+    }
+    .leaflet-popup-content { margin:8px 12px; font-size:14px; color:#0f172a; }
+    .leaflet-popup-tip { background: linear-gradient(180deg, #fff, #fff); }
+
+    /* small utilities */
+    .note { font-size:13px; color:var(--muted); margin-top:8px; }
+    .missing { color:#b91c1c; font-weight:600; font-size:13px; }
+
+    /* responsive tweaks */
+    .controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
+    .search {
+      border:1px solid rgba(15,23,42,0.06);
+      padding:8px 10px; border-radius:10px; min-width:180px;
+      outline:none; font-size:14px;
+      background:rgba(255,255,255,0.6);
+      position:relative;
+    }
+
+    /* suggestions dropdown */
+    .suggestions {
+      position:relative;
+    }
+    .suggestions-list {
+      position:absolute;
+      z-index:1200;
+      left:0;
+      right:0;
+      background:white;
+      border:1px solid rgba(15,23,42,0.06);
+      box-shadow: 0 8px 20px rgba(2,6,23,0.06);
+      border-radius:8px;
+      margin-top:8px;
+      max-height:200px;
+      overflow:auto;
+      font-size:14px;
+    }
+    .suggestion {
+      padding:10px 12px;
+      cursor:pointer;
+    }
+    .suggestion:hover, .suggestion.active { background:rgba(10,132,255,0.06); }
+
+  </style>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+  <header class="appbar">
+    <div class="logo">SV</div>
+    <div>
+      <h1>แผนที่เยี่ยมบ้านนักเรียน</h1>
+      <p>วางแผนการเยี่ยมบ้าน — ดูหมุด, แบ่งกลุ่ม และประมาณระยะทาง</p>
+    </div>
+  </header>
+
+  <div class="wrapper">
+    <div class="card" style="flex:1 1 auto; padding:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <div class="muted">แผนที่</div>
+        <div class="muted small">กดหมุดเพื่อดูรายละเอียด / นำทาง</div>
+      </div>
+      <div id="map" aria-label="แผนที่เยี่ยมบ้าน"></div>
+    </div>
+
+    <aside class="card side">
+      <div class="panel-title" style="margin-bottom:8px;">
+        <div>
+          <strong>รายการนักเรียน แยกตามกลุ่ม</strong>
+          <div class="muted small">จัดกลุ่มอัตโนมัติ (รัศมี ≤10 กม., ไม่เกิน 5 หลังต่อกลุ่ม)</div>
+        </div>
+        <div style="display:flex; gap:8px; position:relative;">
+          <div class="suggestions" style="width:100%; max-width:360px;">
+            <input id="search" class="search" placeholder="ค้นหาชื่อ (เช่น ออโต้)" autocomplete="off" />
+            <div id="suggestionsList" class="suggestions-list" style="display:none;"></div>
+          </div>
+          <a id="resetBtn" class="btn secondary">รีเซ็ต</a>
+        </div>
+      </div>
+
+      <div id="groupsList" aria-live="polite"></div>
+
+      <hr style="border:none;height:1px;background:linear-gradient(90deg,transparent,rgba(15,23,42,0.04),transparent); margin:12px 0;">
+
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+        <div>
+          <h3 style="margin:0 0 6px 0;">ตารางสรุปกลุ่ม</h3>
+          <div class="muted small">รวมจำนวนบ้านและระยะทางโดยประมาณ</div>
+        </div>
+        <a id="fitBtn" class="btn">แสดงทั้งหมด</a>
+      </div>
+
+      <div id="summary" style="margin-top:8px;"></div>
+
+      <div style="margin-top:12px;">
+        <h3 style="margin:6px 0;">หมายเหตุ</h3>
+        <ul class="muted small">
+          <li>คลิกหมุดเพื่อดูชื่อ และกด "นำทาง" เพื่อเปิด Google Maps</li>
+          <li>เพิ่มพิกัดในตัวแปร <code>students</code> แล้วรีเฟรช หากยังไม่มีหมุด</li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+
+<script>
+/* --- ข้อมูล (อัพเดตตามรายการที่ขอ) --- */
+const school = { name: "โรงเรียน (หมุดแดง)", lat: 14.0282011, lng: 100.5314429 };
+
+const students = [
+  { name: "นายชินดนัย บุบผาลา (ไวท์)", lat: 14.015661, lng: 100.517678, mapsUrl: "https://maps.app.goo.gl/aUVxqJrAQQUNkevq5?g_st=ac" },
+  { name: "นายสิรภัทร ราษฎร์ดุษดี (ออโต้)", lat:14.015917, lng:100.510576, mapsUrl: "https://goo.gl/maps/bNj3m43891sfFUde9" },
+  { name: "นายอาทิตย์ ศรีอ่อนทอง (ออฟ)", lat:13.980058, lng:100.518893, mapsUrl: "https://goo.gl/maps/h5gFPSKnf5Kjb9MN6" },
+  { name: "นายณัฐภัทร ถนอมผล (ฟลุ๊ค)", lat:13.952397, lng:100.522845, mapsUrl: "https://maps.app.goo.gl/B7KxooVVZFJ5Wav19" },
+  { name: "นายชัชวาล คำมีมงคล (เบนซ์)", lat:14.0156424, lng:100.5176812, mapsUrl: "https://maps.app.goo.gl/XWzcZRfTQAFFLeZm9" },
+  { name: "นายสมบูรณ์ (แมน)", lat: 14.007245375502102,  lng: 100.53012868533324, mapsUrl: "https://maps.app.goo.gl/6XsPtWSRmey7YB2SA" },
+  { name: "นางสาวกฤตยาณี ศรีคันทา (ฟูจิ)", lat:null, lng:null },
+  { name: "นางสาวฐานิตา อินหนู (การตูน)", lat:null, lng:null },
+  { name: "นางสาวธมนวรรณ ทำสูงเนิน (เอียร์)", lat:14.040992343275773, lng:100.47959223822465, mapsUrl: "https://maps.app.goo.gl/qum3zdo35RMahgM66?g_st=ipc" },
+  { name: "นางสาวผกายมาศ ช่างต่อ (ฝ้าย)", lat:14.054222702186228,  lng:100.53597089437565, mapsUrl:"https://maps.app.goo.gl/QBvx6aagX9PMSDzb7"},
+  { name: "นางสาวพิมริตา แตงทรัพย์ (บิว)", lat:null, lng:null },
+  { name: "นางสาวรินลดา จุลพันธ์ (ริน)", lat:14.0393533, lng:100.530935, mapsUrl: "https://maps.app.goo.gl/MRvZJMp7XtUCPuhF8" },
+  { name: "นางสาวฐิดาพร เรืองภู (โอม)", lat:14.015433, lng:100.517470, mapsUrl: "https://maps.app.goo.gl/3g3X9qmvKsjQN6Kw8?g_st=ac" },
+  { name: "เด็กหญิงณัฐรัมภา เปี่ยมพิทักษ์ (มีนา)", lat:14.059070778547348,  lng:100.48935868164307, mapsUrl: "https://maps.app.goo.gl/VVK6e7u1VeXujLBH9" },
+  { name: "เด็กหญิงปิยสกุล เถาหมอ (แพรวพราว)", lat:14.053871623969046, lng:100.49877684178084, mapsUrl: "https://maps.app.goo.gl/R3U1C6MJ8vMnA2xNA" },
+  { name: "เด็กหญิงเพ็ญพิชชา แสงพลาย (แพรวา)", lat:14.074527553728515, lng:100.418277351021, mapsUrl: "https://maps.app.goo.gl/KS3TucrZdyKfsxKw6?g_st=ic" },
+  { name: "นางสาวพศิกา ใจรัก (ชมพู่)", lat:null, lng:null },
+  { name: "นางสาวพรรณิษา สร้อยมาตร์ (ทับทิม)", lat:null, lng:null },
+  { name: "นางสาวณัฐฐาพร มีเดช (ครีม)", lat:13.970361990063937, lng:100.50974128833718, mapsUrl: "https://maps.app.goo.gl/BGYdqXHnMX4kGexaA" },
+  { name: "เด็กหญิงวรฤทัย ใจซื่อ (มิว)", lat:14.0401111, lng:100.5303611, mapsUrl: "https://maps.app.goo.gl/e5DnKZmFLoqdFRNw7?g_st=com.google.maps.preview.copy" },
+  { name: "นางสาวณัฏฐาภรณ์ ทองอินทร์ (เนเน่)", lat:13.95883408323162, lng:100.53081661225212, mapsUrl: "https://maps.app.goo.gl/xbHES6kgMXRMLcFg6?g_st=ipc" },
+  { name: "นางสาวพรหมพร พงษ์ประเสริฐ (พลอย)", lat:13.9754290, lng:100.5159270, mapsUrl: "https://maps.app.goo.gl/YL2B7Jeih7o9m6Zb6?g_st=il" }
+];
+
+/* --- helpers --- */
+function haversineKm(a, b){
+  const R = 6371;
+  const toRad = x => x * Math.PI/180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLon = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat), lat2 = toRad(b.lat);
+  const hav = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(hav));
+}
+
+/* --- map init --- */
+const map = L.map('map', { zoomControl:true }).setView([school.lat, school.lng], 12);
+const street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ attribution:'© OpenStreetMap contributors' });
+const satellite = L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',{ attribution:'© OSM HOT' });
+street.addTo(map);
+const baseMaps = { "แผนที่ถนน": street, "แผนที่ดาวเทียม": satellite };
+L.control.layers(baseMaps, null, {collapsed:true, position:'topright'}).addTo(map);
+
+/* --- icons --- */
+const schoolIcon = L.icon({ iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/red-dot.png', iconSize:[32,32], iconAnchor:[16,32] });
+const studentIcon = L.icon({
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  iconSize:[26,41], iconAnchor:[13,41]
+});
+
+/* --- markers --- */
+L.marker([school.lat, school.lng], {icon: schoolIcon}).addTo(map).bindPopup(`<b>${school.name}</b>`);
+
+const validStudents = students.filter(s => s.lat !== null && s.lng !== null);
+const missing = students.filter(s => s.lat === null || s.lng === null);
+
+const studentMarkers = [];
+validStudents.forEach(s => {
+  const m = L.marker([s.lat, s.lng], {icon: studentIcon}).addTo(map);
+  const nav = s.mapsUrl ? s.mapsUrl : `https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}&travelmode=driving`;
+  m.bindPopup(`<div style="font-weight:600;margin-bottom:6px;">${escapeHtml(s.name)}</div><div style="display:flex;gap:8px;"><a class="btn" href="${nav}" target="_blank" style="text-decoration:none;">นำทาง</a></div>`);
+  studentMarkers.push({name:s.name, lat:s.lat, lng:s.lng, marker:m});
+});
+
+/* --- grouping (uses only markers that have lat/lng) --- */
+const UNASSIGNED = studentMarkers.map(s => ({name:s.name, lat:s.lat, lng:s.lng}));
+const groups = [];
+while(UNASSIGNED.length > 0){
+  const seed = UNASSIGNED.shift();
+  const group = [seed];
+  const neighbors = [];
+  for(let i=UNASSIGNED.length-1;i>=0;i--){
+    const cand = UNASSIGNED[i];
+    const d = haversineKm(seed, cand);
+    if(d <= 10) neighbors.push({d:d, idx:i, cand:cand});
+  }
+  neighbors.sort((a,b)=>a.d-b.d);
+  for(const nb of neighbors){
+    if(group.length >=5) break;
+    group.push(nb.cand);
+    UNASSIGNED.splice(nb.idx,1);
+  }
+  groups.push(group);
+}
+
+/* --- approximate route --- */
+function approxRouteDistance(group){
+  if(group.length === 0) return 0;
+  let cur = {lat: school.lat, lng: school.lng};
+  let remaining = group.slice();
+  let total = 0;
+  while(remaining.length>0){
+    let bestIdx = 0;
+    let bestD = haversineKm(cur, remaining[0]);
+    for(let i=1;i<remaining.length;i++){
+      const d = haversineKm(cur, remaining[i]);
+      if(d < bestD){ bestD=d; bestIdx=i; }
+    }
+    total += bestD;
+    cur = remaining.splice(bestIdx,1)[0];
+  }
+  return Math.round(total*100)/100;
+}
+
+/* --- render sidebar --- */
+const groupsList = document.getElementById('groupsList');
+const summaryDiv = document.getElementById('summary');
+
+function renderLists(filterText=''){
+  groupsList.innerHTML = '';
+  groups.forEach((g,i)=>{
+    const div = document.createElement('div');
+    div.className = 'group';
+    const items = g.map(x=>x.name);
+    const filtered = items.filter(n => n.toLowerCase().includes(filterText.toLowerCase()));
+    const namesHTML = filtered.length ? filtered.join('<br>') : '<span class="muted small">ไม่มีชื่อที่ตรงกับการค้นหาในกลุ่มนี้</span>';
+    const count = g.length;
+    const dist = approxRouteDistance(g);
+    div.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;"><div><b>กลุ่ม ${i+1}</b><div class="small muted">บ้าน ${count} หลัง · ${dist} กม.</div></div><div><a class="btn secondary" onclick="zoomToGroup(${i})">ดูบนแผนที่</a></div></div><hr style="border:none;height:1px;background:linear-gradient(90deg,transparent,rgba(15,23,42,0.04),transparent);margin:8px 0;">${namesHTML}`;
+    groupsList.appendChild(div);
+  });
+
+  // summary table
+  let html = `<table><thead><tr><th>กลุ่ม</th><th>จำนวนบ้าน</th><th>ระยะทาง (กม.)</th></tr></thead><tbody>`;
+  groups.forEach((g,i)=>{
+    html += `<tr><td>${i+1}</td><td>${g.length}</td><td>${approxRouteDistance(g)}</td></tr>`;
+  });
+  html += `</tbody></table>`;
+
+  if(missing.length>0){
+    const missingHtml = missing.map(m=>{
+      if(m.mapsUrl) return `<a href="${m.mapsUrl}" target="_blank">${escapeHtml(m.name)}</a>`;
+      return escapeHtml(m.name);
+    }).join(', ');
+    html += `<p class="missing">ยังไม่ใส่พิกัด: ${missingHtml} — หากมีพิกัด ให้เพิ่มในตัวแปร <code>students</code> แล้วรีเฟรช</p>`;
+  }
+  summaryDiv.innerHTML = html;
+}
+renderLists();
+
+/* --- interactions --- */
+window.zoomToGroup = function(i){
+  const group = groups[i];
+  const grpMarkers = [];
+  group.forEach(p=>{
+    const m = studentMarkers.find(sm=>sm.name===p.name);
+    if(m) grpMarkers.push(m.marker);
+  });
+  grpMarkers.push(L.marker([school.lat, school.lng],{opacity:0}));
+  const fg = L.featureGroup(grpMarkers);
+  map.fitBounds(fg.getBounds().pad(0.25));
+}
+
+document.getElementById('fitBtn').addEventListener('click', ()=>{
+  const all = studentMarkers.map(s=>s.marker).concat(L.marker([school.lat, school.lng],{opacity:0}));
+  const fg = L.featureGroup(all);
+  map.fitBounds(fg.getBounds().pad(0.2));
+});
+
+document.getElementById('resetBtn').addEventListener('click', ()=>{
+  document.getElementById('search').value = '';
+  renderLists('');
+  document.getElementById('search').focus();
+  hideSuggestions();
+});
+
+/* --- suggestions & open popup or maps link on select --- */
+const searchInput = document.getElementById('search');
+const suggestionsEl = document.getElementById('suggestionsList');
+
+function showSuggestions(matches){
+  if(!matches || matches.length === 0){ suggestionsEl.style.display = 'none'; suggestionsEl.innerHTML = ''; return; }
+  suggestionsEl.innerHTML = matches.map(m => `<div class="suggestion" data-name="${escapeHtml(m.name)}">${escapeHtml(m.name)}</div>`).join('');
+  suggestionsEl.style.display = 'block';
+  Array.from(suggestionsEl.children).forEach(child=>{
+    child.addEventListener('click', (e)=>{
+      const name = child.getAttribute('data-name');
+      openStudentByName(name);
+      suggestionsEl.style.display = 'none';
+    });
+  });
+}
+
+function hideSuggestions(){ suggestionsEl.style.display = 'none'; suggestionsEl.innerHTML = ''; }
+
+function getMatches(q){
+  if(!q) return [];
+  const ql = q.trim().toLowerCase();
+  if(!ql) return [];
+  return students
+    .filter(s => s.name.toLowerCase().includes(ql))
+    .slice(0,8); // limit
+}
+
+function openStudentByName(name){
+  const decoded = decodeHtml(name);
+  const s = students.find(x => x.name === name || x.name === decoded || x.name.toLowerCase().includes(decoded.toLowerCase()));
+  if(!s) return;
+  if(s.lat !== null && s.lng !== null){
+    const sm = studentMarkers.find(sm => sm.name === s.name);
+    if(sm){
+      map.flyTo([sm.lat, sm.lng], 15, {duration: 0.6});
+      setTimeout(()=>{ sm.marker.openPopup(); }, 700);
+    }
+  } else if(s.mapsUrl){
+    window.open(s.mapsUrl, '_blank');
+  } else {
+    // no coords and no link - just highlight in sidebar (no alert to keep UI clean)
+    renderLists(s.name);
+  }
+  searchInput.blur();
+  hideSuggestions();
+}
+
+/* helper to escape HTML for insertion into DOM */
+function escapeHtml(str){
+  return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function decodeHtml(str){
+  const txt = document.createElement('textarea'); txt.innerHTML = str; return txt.value;
+}
+
+searchInput.addEventListener('input', (e)=>{
+  const q = e.target.value;
+  renderLists(q);
+  const matches = getMatches(q);
+  showSuggestions(matches);
+});
+
+searchInput.addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter'){
+    const q = e.target.value.trim();
+    if(!q) return;
+    const matches = getMatches(q);
+    if(matches.length>0){
+      e.preventDefault();
+      openStudentByName(matches[0].name);
+    }
+  } else if(e.key === 'Escape'){
+    hideSuggestions();
+  }
+});
+
+// click outside to hide suggestions
+document.addEventListener('click', (e)=>{
+  if(!document.querySelector('.suggestions').contains(e.target)) hideSuggestions();
+});
+
+/* --- fit initial view --- */
+const allMarkers = studentMarkers.map(s=>s.marker).concat(L.marker([school.lat, school.lng],{opacity:0}));
+const g = L.featureGroup(allMarkers);
+if(g.getBounds().isValid()) map.fitBounds(g.getBounds().pad(0.2));
+</script>
+</body>
+</html>
