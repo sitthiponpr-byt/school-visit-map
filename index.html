@@ -353,7 +353,7 @@ function renderLists(filterText=''){
       if(m.mapsUrl) return `<a href="${m.mapsUrl}" target="_blank">${escapeHtml(m.name)}</a>`;
       return escapeHtml(m.name);
     }).join(', ');
-    html += `<p class="missing">ยังไม่ใส่พิกัด: ${missingHtml} — หากมีพิกัด ให้เพิ่มในตัวแปร <code>students</code> แล้วรีเฟรช</p>`;
+    html += `<p class="missing">ยังไม่ใส่พิกัด: ${missingHtml} — </p>`;
   }
   summaryDiv.innerHTML = html;
 }
